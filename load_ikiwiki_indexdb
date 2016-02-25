@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+use Storable;
+use Data::Dumper;
+use strict;
+use warnings;
+
+my $index = retrieve('ikiwiki-indexdb');
+
+while (my ($page, $data) = each %{$index->{"page"}})
+{
+	print("$page " . ($data->{"ctime"}) ."\n");
+	#print Dumper $data;
+}

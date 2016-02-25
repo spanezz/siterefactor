@@ -1,0 +1,499 @@
+#!/usr/bin/python3
+# coding: utf-8
+import sys
+import re
+import io
+import os
+import argparse
+import datetime
+import shutil
+import logging
+import json
+import pytz
+from dateutil.tz import tzlocal
+
+log = logging.getLogger()
+
+
+class Ctimes:
+    def __init__(self, fname):
+        self.by_relpath = {}
+        for fname, ctime in self.parse(fname):
+            self.by_relpath[fname] = ctime
+
+    def parse(self, fname):
+        with open(fname, "rb") as fd:
+            for line in fd:
+                fname, ctime = line.rsplit(None, 1)
+                try:
+                    fname = fname.decode("utf-8")
+                except UnicodeDecodeError as e:
+                    try:
+                        fname = fname.decode("latin1")
+                    except UnicodeDecodeError as e:
+                        log.warning("Cannot decode %s: %s", repr(fname), e)
+                ctime = int(ctime)
+                yield fname, ctime
+
+
+class Post:
+    def __init__(self, relpath, ctime=None):
+        # Relative path of the post, without .mdwn extension
+        self.relpath = relpath[:-5]
+
+        # Source file name
+        self.src = None
+
+        # Post date
+        if ctime is not None:
+            self.date = pytz.utc.localize(datetime.datetime.utcfromtimestamp(ctime))
+        else:
+            self.date = None
+
+        # Post title
+        self.title = None
+
+        # Post tags
+        self.tags = set()
+
+        # Post content lines original markdown
+        self.body = []
+
+        # Rules used to match metadata lines
+        self.meta_line_rules = [
+            (re.compile(r"^#\s*(?P<title>.+)"), self.parse_title),
+            (re.compile(r"^\[\[!tag (?P<tags>[^\]]+)\]\]"), self.parse_tags),
+            (re.compile(r'^\[\[!meta date="(?P<date>\d+-\d+-\d+)"\]\]'), self.parse_date),
+        ]
+
+        # Rules used to match whole lines
+        self.body_line_rules = [
+            (re.compile(r'^\[\[!format (?P<lang>\S+) """'), "line_code_begin"),
+            (re.compile(r"^\[\[!format (?P<lang>\S+) '''"), "line_code_begin"),
+            (re.compile(r'^"""\]\]'), "line_code_end"),
+            (re.compile(r"^'''\]\]"), "line_code_end"),
+            (re.compile(r"^\[\[!map"), "line_include_map"),
+        ]
+
+        # Rules used to parse directives
+        self.body_directive_rules = [
+            (re.compile(r'!img (?P<fname>\S+) alt="(?P<alt>[^"]+)"'), "part_img"),
+            (re.compile(r"(?P<text>[^|]+)\|(?P<target>[^\]]+)"), "part_internal_link"),
+        ]
+
+    def parse_title(self, line, title, **kw):
+        if self.title is None:
+            self.title = title
+            # Discard the main title
+            return None
+        else:
+            return line
+
+    def parse_tags(self, line, tags, **kw):
+        for t in tags.split():
+            if t.startswith("tags/"):
+                t = t[5:]
+            self.tags.add(t)
+        # Line is discarded
+        return None
+
+    def parse_date(self, line, date, **kw):
+        self.date = pytz.utc.localize(datetime.datetime.strptime(date, "%Y-%m-%d"))
+        return None
+
+    def read(self, src):
+        self.src = src
+        if self.date is None:
+            self.date = pytz.utc.localize(datetime.datetime.utcfromtimestamp(os.path.getmtime(src)))
+        with open(src, "rt") as fd:
+            for lineno, line in enumerate(fd, 1):
+                self.lineno = lineno
+                line = line.rstrip()
+
+                # Search entire body lines for whole-line metadata directives
+                for regex, func in self.meta_line_rules:
+                    mo = regex.match(line)
+                    if mo:
+                        line = func(line, **mo.groupdict())
+                        break
+
+                if line is not None:
+                    self.body.append((lineno, line))
+
+
+    def parse_body_line(self, lineno, line, dest):
+        # Search entire body lines for whole-line directives
+        for regex, func in self.body_line_rules:
+            mo = regex.match(line)
+            if mo:
+                getattr(dest, func)(**mo.groupdict())
+                return
+
+        # Split the line looking for ikiwiki directives
+        re_directive = re.compile(r"\[\[([^\]]+)\]\]")
+        parts = re_directive.split(line)
+        if len(parts) == 1:
+            dest.line_text()
+            return
+
+        res = []
+        for idx, p in enumerate(parts):
+            if idx % 2 == 0:
+                res.append(("part_text", { "text": p }))
+            else:
+                res.append(self.parse_body_directive(lineno, p))
+        dest.line_multi(res)
+
+    def parse_body_directive(self, lineno, text):
+        for regex, func in self.body_directive_rules:
+            mo = regex.match(text)
+            if mo:
+                return func, mo.groupdict()
+        return "part_directive", { "text": text }
+
+    def parse_body(self, dest):
+        for lineno, line in self.body:
+            dest.start_line(lineno, line)
+            self.parse_body_line(lineno, line, dest)
+
+
+class Static:
+    def __init__(self, relpath, ctime):
+        self.relpath = relpath
+        self.ctime = ctime
+
+
+class Blog:
+    def __init__(self, root):
+        self.root = root
+
+        ctimes_path = os.path.join(root, "ikiwiki-indexdb.txt")
+        if os.path.exists(ctimes_path):
+            self.ctimes = Ctimes(ctimes_path)
+        else:
+            self.ctimes = None
+
+        # Markdown posts
+        self.posts = {}
+
+        # Static files
+        self.static = {}
+
+    def read_years(self):
+        for d in os.listdir(self.root):
+            if not re.match(r"^\d{4}$", d): continue
+            self.read_tree(d)
+
+    def read_talks(self):
+        talks_dir = os.path.join(self.root, "talks")
+        if not os.path.isdir(talks_dir): return
+        self.read_tree("talks")
+
+    def read_tree(self, relpath):
+        log.info("Loading directory %s", relpath)
+        abspath = os.path.join(self.root, relpath)
+        for f in os.listdir(abspath):
+            absf = os.path.join(abspath, f)
+            if os.path.isdir(absf):
+                self.read_tree(os.path.join(relpath, f))
+            elif f.endswith(".mdwn"):
+                self.read_post(os.path.join(relpath, f))
+            elif os.path.isfile(absf):
+                self.read_static(os.path.join(relpath, f))
+
+    def _instantiate(self, Resource, relpath):
+        if self.ctimes is not None:
+            ctime = self.ctimes.by_relpath.get(relpath, None)
+        else:
+            ctime = None
+        return Resource(relpath, ctime)
+
+    def read_post(self, relpath):
+        log.info("Loading post %s", relpath)
+        post = self._instantiate(Post, relpath)
+        post.read(os.path.join(self.root, relpath))
+        self.posts[relpath] = post
+
+    def read_static(self, relpath):
+        log.info("Loading static file %s", relpath)
+        static = self._instantiate(Static, relpath)
+        self.static[relpath] = static
+
+
+class BodyWriter:
+    def __init__(self, post):
+        self.post = post
+        self.lineno = None
+        self.line = None
+        self.output = []
+
+    def start_line(self, lineno, line):
+        self.lineno = lineno
+        self.line = line
+
+    def write(self, out):
+        for line in self.output:
+            print(line, file=out)
+
+    def is_empty(self):
+        for line in self.output:
+            if line:
+                return False
+        return True
+
+
+class BodyDumper(BodyWriter):
+    def print(self, *args):
+        parts = [str(self.lineno)]
+        parts.extend(str(x) for x in args)
+        self.output.append(" ".join(parts))
+
+    def line_code_begin(self, lang, **kw):
+        self.print("code_begin", lang)
+
+    def line_code_end(self, **kw):
+        self.print("code_end")
+
+    def line_include_map(self, **kw):
+        self.print("map", self.line)
+
+    def line_text(self, **kw):
+        self.print("line", self.line)
+
+    def line_multi(self, parts, **kw):
+        self.print("multi", self.line)
+        for name, kw in parts:
+            getattr(self, name)(**kw)
+
+    def part_img(self, fname, alt, **kw):
+        self.print("  img", fname, alt)
+
+    def part_internal_link(self, text, target, **kw):
+        self.print("  internal_link", target, text)
+
+    def part_text(self, text):
+        self.print("  text", text)
+
+    def part_directive(self, text):
+        self.print("  directive", text)
+
+
+class DumpWriter:
+    def __init__(self, root):
+        self.root = root
+
+    def write(self, blog):
+        for post in blog.posts.values():
+            self.write_post(blog.root, post)
+
+        for static in blog.static.values():
+            self.write_static(blog.root, static)
+
+    def write_static(self, src_root, static):
+        dst = os.path.join(self.root, static.relpath)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(os.path.join(src_root, static.relpath), dst)
+
+    def write_post(self, src_root, post):
+        dst = os.path.join(self.root, post.relpath + ".md")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+
+        meta = {}
+        if post.title is not None:
+            meta["title"] = post.title
+        if post.tags:
+            meta["tags"] = sorted(post.tags)
+        if post.date is not None:
+            meta["date"] = post.date.strftime("%Y-%m-%d")
+
+        with open(dst, "wt") as out:
+            json.dump(meta, out, indent=2)
+            out.write("\n")
+            dumper = BodyDumper(post, out)
+            post.parse_body(dumper)
+
+
+class BodyHugo(BodyWriter):
+    def line_code_begin(self, lang, **kw):
+        self.output.append("{{{{< highlight {} >}}}}".format(lang))
+
+    def line_code_end(self, **kw):
+        self.output.append("{{< /highlight >}}")
+
+    def line_include_map(self, **kw):
+        if self.lineno != 1:
+            log.warn("%s:%s: found map tag not in first line", self.post.relpath, self.lineno)
+
+    def line_text(self, **kw):
+        self.output.append(self.line)
+
+    def line_multi(self, parts, **kw):
+        res = []
+        for name, kw in parts:
+            res.append(getattr(self, name)(**kw))
+        self.output.append("".join(res))
+
+    def part_img(self, fname, alt, **kw):
+        return '{{{{< figure src="{fname}" alt="{alt}" >}}}}'.format(fname=fname, alt=alt)
+
+    def part_internal_link(self, text, target, **kw):
+        return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=target)
+
+    def part_text(self, text):
+        return text
+
+    def part_directive(self, text):
+        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.post.relpath, self.lineno, text)
+        return "[[{}]]".format(text)
+
+
+class HugoWriter:
+    def __init__(self, root):
+        # Root directory of the destination
+        self.root = root
+
+    def write(self, blog):
+        for post in blog.posts.values():
+            self.write_post(blog.root, post)
+
+        for static in blog.static.values():
+            self.write_static(blog.root, static)
+
+    def write_static(self, src_root, static):
+        dst = os.path.join(self.root, "content", static.relpath)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(os.path.join(src_root, static.relpath), dst)
+
+    def write_post(self, src_root, post):
+        writer = BodyHugo(post)
+        post.parse_body(writer)
+        if writer.is_empty():
+            return
+
+        dst = os.path.join(self.root, "content", post.relpath + ".md")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+
+        meta = {}
+        if post.title is not None:
+            meta["title"] = post.title
+        if post.tags:
+            meta["tags"] = sorted(post.tags)
+        if post.date is not None:
+            meta["date"] = post.date.strftime("%Y-%m-%d")
+
+        with open(dst, "wt") as out:
+            json.dump(meta, out, indent=2)
+            out.write("\n")
+            writer.write(out)
+
+
+class BodyNikola(BodyWriter):
+    def line_code_begin(self, lang, **kw):
+        self.output.append("```{}".format(lang))
+
+    def line_code_end(self, **kw):
+        self.output.append("```")
+
+    def line_include_map(self, **kw):
+        if self.lineno != 1:
+            log.warn("%s:%s: found map tag not in first line", self.post.relpath, self.lineno)
+
+    def line_text(self, **kw):
+        self.output.append(self.line)
+
+    def line_multi(self, parts, **kw):
+        res = []
+        for name, kw in parts:
+            res.append(getattr(self, name)(**kw))
+        self.output.append("".join(res))
+
+    def part_img(self, fname, alt, **kw):
+        return '{{{{< figure src="{fname}" alt="{alt}" >}}}}'.format(fname=fname, alt=alt)
+
+    def part_internal_link(self, text, target, **kw):
+        return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=target)
+
+    def part_text(self, text):
+        return text
+
+    def part_directive(self, text):
+        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.post.relpath, self.lineno, text)
+        return "[[{}]]".format(text)
+
+
+class NikolaWriter:
+    def __init__(self, root):
+        # Root directory of the destination
+        self.root = root
+
+    def write(self, blog):
+        for post in blog.posts.values():
+            self.write_post(blog.root, post)
+
+        for static in blog.static.values():
+            self.write_static(blog.root, static)
+
+    def write_static(self, src_root, static):
+        dst = os.path.join(self.root, static.relpath)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(os.path.join(src_root, static.relpath), dst)
+
+    def write_post(self, src_root, post):
+        writer = BodyNikola(post)
+        post.parse_body(writer)
+        if writer.is_empty():
+            return
+
+        dst = os.path.join(self.root, post.relpath + ".md")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, "wt") as out:
+            print("<!--", file=out)
+            if post.title is not None:
+                print(".. title: {}".format(post.title), file=out)
+            if post.tags:
+                print(".. tags: {}".format(", ".join(sorted(post.tags))), file=out)
+            if post.date is not None:
+                tz = tzlocal()
+                ts = post.date.astimezone(tz)
+                offset = tz.utcoffset(ts)
+                offset_sec = (offset.days * 24 * 3600 + offset.seconds)
+                offset_hrs = offset_sec // 3600
+                offset_min = offset_sec % 3600
+                if offset:
+                    tz_str = ' UTC{0:+03d}:{1:02d}'.format(offset_hrs, offset_min // 60)
+                else:
+                    tz_str = ' UTC'
+                print(".. date: {}".format(ts.strftime("%Y-%m-%d %H:%M:%S") + tz_str), file=out)
+            print("-->", file=out)
+            print(file=out)
+            out.write("\n")
+            writer.write(out)
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert from ikiwiki to hugo.")
+    parser.add_argument("destdir", help="destination directory")
+    parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
+
+    args = parser.parse_args()
+
+    FORMAT = "%(asctime)-15s %(levelname)s %(message)s"
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO, stream=sys.stderr, format=FORMAT)
+    else:
+        logging.basicConfig(level=logging.WARN, stream=sys.stderr, format=FORMAT)
+
+    blog = Blog(os.path.abspath("."))
+    blog.read_years()
+    blog.read_talks()
+
+    #dump = DumpWriter(args.destdir)
+    #dump = HugoWriter(args.destdir)
+    dump = NikolaWriter(args.destdir)
+    dump.write(blog)
+    #conv = Converter(".", args.destdir, ctimes=ctimes)
+    #conv.convert_years()
+    #conv.convert_talks()
+
+
+if __name__ == "__main__":
+    main()
