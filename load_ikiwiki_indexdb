@@ -15,7 +15,7 @@ my %res;
 while (my ($page, $data) = each %{$index->{"page"}})
 {
 	$res{$page} = {
-		ctime => $data->{ctime},
+		ctime => int($data->{ctime}),
 	};
 	#print("$page " . ($data->{"ctime"}) ."\n");
 	#print Dumper $data;
