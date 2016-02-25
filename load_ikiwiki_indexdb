@@ -1,13 +1,23 @@
 #!/usr/bin/perl
 use Storable;
 use Data::Dumper;
+use JSON;
+use feature 'unicode_strings';
+use utf8;
 use strict;
 use warnings;
 
-my $index = retrieve('ikiwiki-indexdb');
+# Read an ikiwiki indexdb file and output its ctime contents in JSON
 
+my $index = retrieve($ARGV[0]);
+
+my %res;
 while (my ($page, $data) = each %{$index->{"page"}})
 {
-	print("$page " . ($data->{"ctime"}) ."\n");
+	$res{$page} = {
+		ctime => $data->{ctime},
+	};
+	#print("$page " . ($data->{"ctime"}) ."\n");
 	#print Dumper $data;
 }
+print(to_json(\%res, { utf8 => 1, pretty => 1}));
