@@ -222,21 +222,16 @@ class BodyWriter:
         self.line = line
 
     def resolve_link_relpath(self, target):
-        #debug = "using-python-datetime" in target
         target = target.lstrip("/")
         root = self.post.relpath
         while True:
             target_relpath = os.path.join(root, target)
             abspath = os.path.join(self.post.blog.root, target_relpath)
             if os.path.exists(abspath):
-                #if debug: print("TRYOK", root, target, target_relpath)
                 return target_relpath
             if os.path.exists(abspath + ".mdwn"):
-                #if debug: print("TRYOK", root, target, target_relpath)
                 return target_relpath
-            #if debug: print("TRYNO", root, target, target_relpath)
             if not root or root == "/":
-                #if debug: print("TRYKO", root, target)
                 return None
             root = os.path.dirname(root)
 
