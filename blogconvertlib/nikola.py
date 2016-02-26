@@ -34,14 +34,14 @@ class BodyNikola(BodyWriter):
         return '![{alt}]({fname})'.format(fname=fname, alt=alt)
 
     def part_internal_link(self, text, target, **kw):
-        dest = self.post.resolve_link_relpath(target)
+        dest = self.page.resolve_link_relpath(target)
         return '[{text}]({target}.md)'.format(text=text, target=dest)
 
     def part_text(self, text):
         return text
 
     def part_directive(self, text):
-        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.post.relpath, self.lineno, text)
+        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.page.relpath, self.lineno, text)
         return "[[{}]]".format(text)
 
 
@@ -51,8 +51,8 @@ class NikolaWriter:
         self.root = root
 
     def write(self, site):
-        for post in site.posts.values():
-            self.write_post(site.root, post)
+        for page in site.pages.values():
+            self.write_page(site.root, page)
 
         for static in site.static.values():
             self.write_static(site.root, static)
@@ -62,23 +62,23 @@ class NikolaWriter:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(src_root, static.relpath), dst)
 
-    def write_post(self, src_root, post):
-        writer = BodyNikola(post)
-        post.parse_body(writer)
+    def write_page(self, src_root, page):
+        writer = BodyNikola(page)
+        page.parse_body(writer)
         if writer.is_empty():
             return
 
-        dst = os.path.join(self.root, post.relpath + ".md")
+        dst = os.path.join(self.root, page.relpath + ".md")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, "wt") as out:
             print("<!--", file=out)
-            if post.title is not None:
-                print(".. title: {}".format(post.title), file=out)
-            if post.tags:
-                print(".. tags: {}".format(", ".join(sorted(post.tags))), file=out)
-            if post.date is not None:
+            if page.title is not None:
+                print(".. title: {}".format(page.title), file=out)
+            if page.tags:
+                print(".. tags: {}".format(", ".join(sorted(page.tags))), file=out)
+            if page.date is not None:
                 tz = tzlocal()
-                ts = post.date.astimezone(tz)
+                ts = page.date.astimezone(tz)
                 offset = tz.utcoffset(ts)
                 offset_sec = (offset.days * 24 * 3600 + offset.seconds)
                 offset_hrs = offset_sec // 3600

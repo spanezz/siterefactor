@@ -30,8 +30,8 @@ class BodyPelican(BodyWriter):
         return '![{alt}]({{attach}}{fname})'.format(fname=fname, alt=alt)
 
     def part_internal_link(self, text, target, **kw):
-        dest = self.post.resolve_link_relpath(target)
-        if os.path.exists(os.path.join(self.post.site.root, dest)):
+        dest = self.page.resolve_link_relpath(target)
+        if os.path.exists(os.path.join(self.page.site.root, dest)):
             return '[{text}]({{attach}}{target})'.format(text=text, target=dest)
         else:
             return '[{text}]({{filename}}{target}.md)'.format(text=text, target=dest)
@@ -40,7 +40,7 @@ class BodyPelican(BodyWriter):
         return text
 
     def part_directive(self, text):
-        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.post.relpath, self.lineno, text)
+        log.warn("%s:%s: found unsupported custom tag [[%s]]", self.page.relpath, self.lineno, text)
         return "[[{}]]".format(text)
 
 
@@ -50,8 +50,8 @@ class PelicanWriter:
         self.root = root
 
     def write(self, site):
-        for post in site.posts.values():
-            self.write_post(site.root, post)
+        for page in site.pages.values():
+            self.write_page(site.root, page)
 
         for static in site.static.values():
             self.write_static(site.root, static)
@@ -61,23 +61,23 @@ class PelicanWriter:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(src_root, static.relpath), dst)
 
-    def write_post(self, src_root, post):
-        writer = BodyPelican(post)
-        post.parse_body(writer)
+    def write_page(self, src_root, page):
+        writer = BodyPelican(page)
+        page.parse_body(writer)
         if writer.is_empty():
             return
 
-        dst = os.path.join(self.root, "content", post.relpath + ".md")
+        dst = os.path.join(self.root, "content", page.relpath + ".md")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
 
         with open(dst, "wt") as out:
-            if post.title is not None:
-                print("Title: {}".format(post.title), file=out)
-            if post.tags:
-                print("Tags: {}".format(", ".join(sorted(post.tags))), file=out)
-            if post.date is not None:
+            if page.title is not None:
+                print("Title: {}".format(page.title), file=out)
+            if page.tags:
+                print("Tags: {}".format(", ".join(sorted(page.tags))), file=out)
+            if page.date is not None:
                 tz = tzlocal()
-                ts = post.date.astimezone(tz)
+                ts = page.date.astimezone(tz)
                 print("Date: {}".format(ts.strftime("%Y-%m-%d %H:%M")), file=out)
             print(file=out)
             writer.write(out)

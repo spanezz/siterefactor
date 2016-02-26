@@ -17,36 +17,36 @@ class BodyChecker(BodyWriter):
         pass
 
     def part_internal_link(self, text, target, **kw):
-        target_relpath = self.post.resolve_link_relpath(target)
+        target_relpath = self.page.resolve_link_relpath(target)
         if target_relpath is None:
-            log.warn("%s: no target file found for link target %s", self.post.relpath, target)
+            log.warn("%s: no target file found for link target %s", self.page.relpath, target)
 
     def part_text(self, text):
         pass
 
     def part_directive(self, text):
-        log.warn("%s: Unsupported directive [[%s]]", self.post.relpath, text)
+        log.warn("%s: Unsupported directive [[%s]]", self.page.relpath, text)
 
 
 class Checker:
     def __init__(self):
         self.count_static = 0
-        self.count_posts = 0
+        self.count_pages = 0
 
     def write(self, site):
-        for post in site.posts.values():
-            self.write_post(site.root, post)
+        for page in site.pages.values():
+            self.write_page(site.root, page)
 
         for static in site.static.values():
             self.write_static(site.root, static)
 
-        print("{} posts, {} static files".format(self.count_posts, self.count_static))
+        print("{} pages, {} static files".format(self.count_pages, self.count_static))
 
     def write_static(self, src_root, static):
         self.count_static += 1
 
-    def write_post(self, src_root, post):
-        self.count_posts += 1
+    def write_page(self, src_root, page):
+        self.count_pages += 1
 
-        writer = BodyChecker(post)
-        post.parse_body(writer)
+        writer = BodyChecker(page)
+        page.parse_body(writer)

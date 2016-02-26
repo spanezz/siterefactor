@@ -49,8 +49,8 @@ class DumpWriter:
         self.root = root
 
     def write(self, site):
-        for post in site.posts.values():
-            self.write_post(site.root, post)
+        for page in site.pages.values():
+            self.write_page(site.root, page)
 
         for static in site.static.values():
             self.write_static(site.root, static)
@@ -60,22 +60,22 @@ class DumpWriter:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(src_root, static.relpath), dst)
 
-    def write_post(self, src_root, post):
-        writer = BodyDumper(post)
-        post.parse_body(writer)
+    def write_page(self, src_root, page):
+        writer = BodyDumper(page)
+        page.parse_body(writer)
         if writer.is_empty():
             return
 
-        dst = os.path.join(self.root, post.relpath + ".md")
+        dst = os.path.join(self.root, page.relpath + ".md")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
 
         meta = {}
-        if post.title is not None:
-            meta["title"] = post.title
-        if post.tags:
-            meta["tags"] = sorted(post.tags)
-        if post.date is not None:
-            meta["date"] = post.date.strftime("%Y-%m-%d")
+        if page.title is not None:
+            meta["title"] = page.title
+        if page.tags:
+            meta["tags"] = sorted(page.tags)
+        if page.date is not None:
+            meta["date"] = page.date.strftime("%Y-%m-%d")
 
         with open(dst, "wt") as out:
             json.dump(meta, out, indent=2)

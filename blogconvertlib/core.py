@@ -22,30 +22,30 @@ class Ctimes:
                 yield fname, info["ctime"]
 
 
-class Post:
+class Page:
     def __init__(self, site, relpath, ctime=None):
-        # Site that owns this post
+        # Site that owns this page
         self.site = site
 
-        # Relative path of the post, without .mdwn extension
+        # Relative path of the page, without .mdwn extension
         self.relpath = relpath[:-5]
 
         # Source file name
         self.src = None
 
-        # Post date
+        # Page date
         if ctime is not None:
             self.date = pytz.utc.localize(datetime.datetime.utcfromtimestamp(ctime))
         else:
             self.date = None
 
-        # Post title
+        # Page title
         self.title = None
 
-        # Post tags
+        # Page tags
         self.tags = set()
 
-        # Post content lines original markdown
+        # Page content lines original markdown
         self.body = []
 
         # Rules used to match metadata lines
@@ -85,10 +85,10 @@ class Post:
             root = os.path.dirname(root)
 
     def resolve_link_title(self, target_relpath):
-        # Resolve mising text from target post title
-        dest_post = self.site.posts.get(target_relpath, None)
-        if dest_post is not None:
-            return dest_post.title
+        # Resolve mising text from target page title
+        dest_page = self.site.pages.get(target_relpath, None)
+        if dest_page is not None:
+            return dest_page.title
         else:
             return None
 
@@ -190,8 +190,8 @@ class Site:
         # Extra ctime information
         self.ctimes = None
 
-        # Markdown posts
-        self.posts = {}
+        # Markdown pages
+        self.pages = {}
 
         # Static files
         self.static = {}
@@ -217,7 +217,7 @@ class Site:
             if os.path.isdir(absf):
                 self.read_tree(os.path.join(relpath, f))
             elif f.endswith(".mdwn"):
-                self.read_post(os.path.join(relpath, f))
+                self.read_page(os.path.join(relpath, f))
             elif os.path.isfile(absf):
                 self.read_static(os.path.join(relpath, f))
 
@@ -228,11 +228,11 @@ class Site:
             ctime = None
         return Resource(self, relpath, ctime)
 
-    def read_post(self, relpath):
-        log.info("Loading post %s", relpath)
-        post = self._instantiate(Post, relpath)
-        post.read(os.path.join(self.root, relpath))
-        self.posts[relpath] = post
+    def read_page(self, relpath):
+        log.info("Loading page %s", relpath)
+        page = self._instantiate(Page, relpath)
+        page.read(os.path.join(self.root, relpath))
+        self.pages[relpath] = page
 
     def read_static(self, relpath):
         log.info("Loading static file %s", relpath)
@@ -241,8 +241,8 @@ class Site:
 
 
 class BodyWriter:
-    def __init__(self, post):
-        self.post = post
+    def __init__(self, page):
+        self.page = page
         self.lineno = None
         self.line = None
         self.output = []
@@ -269,7 +269,7 @@ class BodyWriter:
 
     def line_include_map(self, **kw):
         if self.lineno != 1:
-            log.warn("%s:%s: found map tag not in first line", self.post.relpath, self.lineno)
+            log.warn("%s:%s: found map tag not in first line", self.page.relpath, self.lineno)
 
     def line_text(self, **kw):
         pass
