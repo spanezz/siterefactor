@@ -30,7 +30,7 @@ class BodyNikola(BodyWriter):
         self.output.append("".join(res))
 
     def part_img(self, fname, alt, **kw):
-        return '{{{{< figure src="{fname}" alt="{alt}" >}}}}'.format(fname=fname, alt=alt)
+        return '![{alt}]({fname})'.format(fname=fname, alt=alt)
 
     def part_internal_link(self, text, target, **kw):
         return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=target)

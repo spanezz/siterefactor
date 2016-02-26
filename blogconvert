@@ -7,11 +7,14 @@ import logging
 import json
 from blogconvertlib.core import Blog
 
+class CmdlineError(RuntimeError):
+    pass
+
 
 def main():
     parser = argparse.ArgumentParser(description="Convert from ikiwiki to hugo.")
     parser.add_argument("srcdir", help="source directory")
-    parser.add_argument("destdir", help="destination directory")
+    parser.add_argument("destdir", nargs="?", help="destination directory")
     parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
     parser.add_argument("-t", "--type", action="store", help="output type (dump, hugo, nikola)")
     parser.add_argument("-e", "--extrainfo", action="store", help="extra information from a json")
@@ -32,18 +35,31 @@ def main():
 
     if args.type == "dump":
         from blogconvertlib.dump import DumpWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory for the dump command")
         writer = DumpWriter(args.destdir)
     elif args.type == "hugo":
         from blogconvertlib.hugo import HugoWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory pointing to the root of the hugo setup")
         writer = HugoWriter(args.destdir)
     elif args.type == "nikola":
         from blogconvertlib.nikola import NikolaWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory pointing to the root of the nikola setup")
         writer = NikolaWriter(args.destdir)
+    elif not args.type:
+        from blogconvertlib.check import Checker
+        writer = Checker()
     else:
-        raise RuntimeError("Unknown output type {}".format(args.type))
+        raise CmdlineError("Output type {} is not supported".format(args.type))
 
     writer.write(blog)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except CmdlineError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)

@@ -21,8 +21,12 @@ class Ctimes:
             for fname, info in data.items():
                 yield fname, info["ctime"]
 
+
 class Post:
-    def __init__(self, relpath, ctime=None):
+    def __init__(self, blog, relpath, ctime=None):
+        # Blog that owns this post
+        self.blog = blog
+
         # Relative path of the post, without .mdwn extension
         self.relpath = relpath[:-5]
 
@@ -143,7 +147,8 @@ class Post:
 
 
 class Static:
-    def __init__(self, relpath, ctime):
+    def __init__(self, blog, relpath, ctime):
+        self.blog = blog
         self.relpath = relpath
         self.ctime = ctime
 
@@ -191,7 +196,7 @@ class Blog:
             ctime = self.ctimes.by_relpath.get(relpath, None)
         else:
             ctime = None
-        return Resource(relpath, ctime)
+        return Resource(self, relpath, ctime)
 
     def read_post(self, relpath):
         log.info("Loading post %s", relpath)
@@ -216,6 +221,25 @@ class BodyWriter:
         self.lineno = lineno
         self.line = line
 
+    def resolve_link_relpath(self, target):
+        #debug = "using-python-datetime" in target
+        target = target.lstrip("/")
+        root = self.post.relpath
+        while True:
+            target_relpath = os.path.join(root, target)
+            abspath = os.path.join(self.post.blog.root, target_relpath)
+            if os.path.exists(abspath):
+                #if debug: print("TRYOK", root, target, target_relpath)
+                return target_relpath
+            if os.path.exists(abspath + ".mdwn"):
+                #if debug: print("TRYOK", root, target, target_relpath)
+                return target_relpath
+            #if debug: print("TRYNO", root, target, target_relpath)
+            if not root or root == "/":
+                #if debug: print("TRYKO", root, target)
+                return None
+            root = os.path.dirname(root)
+
     def write(self, out):
         for line in self.output:
             print(line, file=out)
@@ -225,4 +249,16 @@ class BodyWriter:
             if line:
                 return False
         return True
+
+    def line_code_begin(self, lang, **kw):
+        pass
+
+    def line_code_end(self, **kw):
+        pass
+
+    def line_include_map(self, **kw):
+        pass
+
+    def line_text(self, **kw):
+        pass
 
