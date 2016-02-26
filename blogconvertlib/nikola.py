@@ -50,12 +50,12 @@ class NikolaWriter:
         # Root directory of the destination
         self.root = root
 
-    def write(self, blog):
-        for post in blog.posts.values():
-            self.write_post(blog.root, post)
+    def write(self, site):
+        for post in site.posts.values():
+            self.write_post(site.root, post)
 
-        for static in blog.static.values():
-            self.write_static(blog.root, static)
+        for static in site.static.values():
+            self.write_static(site.root, static)
 
     def write_static(self, src_root, static):
         dst = os.path.join(self.root, static.relpath)

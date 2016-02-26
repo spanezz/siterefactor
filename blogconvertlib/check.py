@@ -33,12 +33,12 @@ class Checker:
         self.count_static = 0
         self.count_posts = 0
 
-    def write(self, blog):
-        for post in blog.posts.values():
-            self.write_post(blog.root, post)
+    def write(self, site):
+        for post in site.posts.values():
+            self.write_post(site.root, post)
 
-        for static in blog.static.values():
-            self.write_static(blog.root, static)
+        for static in site.static.values():
+            self.write_static(site.root, static)
 
         print("{} posts, {} static files".format(self.count_posts, self.count_static))
 

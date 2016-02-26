@@ -23,9 +23,9 @@ class Ctimes:
 
 
 class Post:
-    def __init__(self, blog, relpath, ctime=None):
-        # Blog that owns this post
-        self.blog = blog
+    def __init__(self, site, relpath, ctime=None):
+        # Site that owns this post
+        self.site = site
 
         # Relative path of the post, without .mdwn extension
         self.relpath = relpath[:-5]
@@ -75,7 +75,7 @@ class Post:
         root = self.relpath
         while True:
             target_relpath = os.path.join(root, target)
-            abspath = os.path.join(self.blog.root, target_relpath)
+            abspath = os.path.join(self.site.root, target_relpath)
             if os.path.exists(abspath):
                 return target_relpath
             if os.path.exists(abspath + ".mdwn"):
@@ -86,7 +86,7 @@ class Post:
 
     def resolve_link_title(self, target_relpath):
         # Resolve mising text from target post title
-        dest_post = self.blog.posts.get(target_relpath, None)
+        dest_post = self.site.posts.get(target_relpath, None)
         if dest_post is not None:
             return dest_post.title
         else:
@@ -177,13 +177,13 @@ class Post:
 
 
 class Static:
-    def __init__(self, blog, relpath, ctime):
-        self.blog = blog
+    def __init__(self, site, relpath, ctime):
+        self.site = site
         self.relpath = relpath
         self.ctime = ctime
 
 
-class Blog:
+class Site:
     def __init__(self, root):
         self.root = root
 

@@ -29,7 +29,11 @@ class BodyHugo(BodyWriter):
 
     def part_internal_link(self, text, target, **kw):
         dest = self.post.resolve_link_relpath(target)
-        return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=dest)
+        reldest = os.path.relpath(dest, self.post.relpath)
+        if os.path.exists(os.path.join(self.post.site.root, dest)):
+            return '[{text}]({{{{< relref "{target}" >}}}})'.format(text=text, target=reldest)
+        else:
+            return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=reldest)
 
     def part_text(self, text):
         return text
@@ -44,12 +48,12 @@ class HugoWriter:
         # Root directory of the destination
         self.root = root
 
-    def write(self, blog):
-        for post in blog.posts.values():
-            self.write_post(blog.root, post)
+    def write(self, site):
+        for post in site.posts.values():
+            self.write_post(site.root, post)
 
-        for static in blog.static.values():
-            self.write_static(blog.root, static)
+        for static in site.static.values():
+            self.write_static(site.root, static)
 
     def write_static(self, src_root, static):
         dst = os.path.join(self.root, "content", static.relpath)
