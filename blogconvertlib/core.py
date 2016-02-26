@@ -70,6 +70,20 @@ class Post:
             (re.compile(r"(?P<text>[^|]+)\|(?P<target>[^\]]+)"), "part_internal_link"),
         ]
 
+    def resolve_link_relpath(self, target):
+        target = target.lstrip("/")
+        root = self.relpath
+        while True:
+            target_relpath = os.path.join(root, target)
+            abspath = os.path.join(self.blog.root, target_relpath)
+            if os.path.exists(abspath):
+                return target_relpath
+            if os.path.exists(abspath + ".mdwn"):
+                return target_relpath
+            if not root or root == "/":
+                return None
+            root = os.path.dirname(root)
+
     def parse_title(self, line, title, **kw):
         if self.title is None:
             self.title = title
@@ -138,6 +152,12 @@ class Post:
             mo = regex.match(text)
             if mo:
                 return func, mo.groupdict()
+
+        # Just target names in [[..]] resolve as links
+        target_relpath = self.resolve_link_relpath(text)
+        if target_relpath is not None:
+            return "part_internal_link", { "text": None, "target": target_relpath }
+
         return "part_directive", { "text": text }
 
     def parse_body(self, dest):
@@ -220,20 +240,6 @@ class BodyWriter:
     def start_line(self, lineno, line):
         self.lineno = lineno
         self.line = line
-
-    def resolve_link_relpath(self, target):
-        target = target.lstrip("/")
-        root = self.post.relpath
-        while True:
-            target_relpath = os.path.join(root, target)
-            abspath = os.path.join(self.post.blog.root, target_relpath)
-            if os.path.exists(abspath):
-                return target_relpath
-            if os.path.exists(abspath + ".mdwn"):
-                return target_relpath
-            if not root or root == "/":
-                return None
-            root = os.path.dirname(root)
 
     def write(self, out):
         for line in self.output:

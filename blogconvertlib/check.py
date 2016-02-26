@@ -17,7 +17,7 @@ class BodyChecker(BodyWriter):
         pass
 
     def part_internal_link(self, text, target, **kw):
-        target_relpath = self.resolve_link_relpath(target)
+        target_relpath = self.post.resolve_link_relpath(target)
         if target_relpath is None:
             log.warn("%s: no target file found for link target %s", self.post.relpath, target)
 
