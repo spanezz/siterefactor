@@ -156,7 +156,7 @@ class Post:
         # Just target names in [[..]] resolve as links
         target_relpath = self.resolve_link_relpath(text)
         if target_relpath is not None:
-            return "part_internal_link", { "text": None, "target": target_relpath }
+            return "part_internal_link", { "text": None, "target": text }
 
         return "part_directive", { "text": text }
 
