@@ -48,6 +48,11 @@ def main():
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory pointing to the root of the nikola setup")
         writer = NikolaWriter(args.destdir)
+    elif args.type == "pelican":
+        from blogconvertlib.pelican import PelicanWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory pointing to the root of the pelican setup")
+        writer = PelicanWriter(args.destdir)
     elif not args.type:
         from blogconvertlib.check import Checker
         writer = Checker()

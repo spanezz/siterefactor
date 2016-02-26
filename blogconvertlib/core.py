@@ -84,6 +84,14 @@ class Post:
                 return None
             root = os.path.dirname(root)
 
+    def resolve_link_title(self, target_relpath):
+        # Resolve mising text from target post title
+        dest_post = self.blog.posts.get(target_relpath, None)
+        if dest_post is not None:
+            return dest_post.title
+        else:
+            return None
+
     def parse_title(self, line, title, **kw):
         if self.title is None:
             self.title = title
@@ -156,7 +164,9 @@ class Post:
         # Just target names in [[..]] resolve as links
         target_relpath = self.resolve_link_relpath(text)
         if target_relpath is not None:
-            return "part_internal_link", { "text": None, "target": text }
+            title = self.resolve_link_title(target_relpath)
+            if title is None: title = text
+            return "part_internal_link", { "text": title, "target": text }
 
         return "part_directive", { "text": text }
 
@@ -258,7 +268,8 @@ class BodyWriter:
         pass
 
     def line_include_map(self, **kw):
-        pass
+        if self.lineno != 1:
+            log.warn("%s:%s: found map tag not in first line", self.post.relpath, self.lineno)
 
     def line_text(self, **kw):
         pass

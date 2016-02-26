@@ -16,10 +16,6 @@ class BodyNikola(BodyWriter):
     def line_code_end(self, **kw):
         self.output.append("```")
 
-    def line_include_map(self, **kw):
-        if self.lineno != 1:
-            log.warn("%s:%s: found map tag not in first line", self.post.relpath, self.lineno)
-
     def line_text(self, **kw):
         self.output.append(self.line)
 
@@ -30,10 +26,16 @@ class BodyNikola(BodyWriter):
         self.output.append("".join(res))
 
     def part_img(self, fname, alt, **kw):
+        # Hack to work around nikola being unable to resolve the actual
+        # location of resources when PRETTY_URLS is used.
+        # See https://github.com/getnikola/nikola/issues/2266
+        dirname, filename = os.path.split(fname)
+        fname = os.path.normpath(os.path.join(dirname, "..", filename))
         return '![{alt}]({fname})'.format(fname=fname, alt=alt)
 
     def part_internal_link(self, text, target, **kw):
-        return '[{text}]({{{{< relref "{target}.md" >}}}})'.format(text=text, target=target)
+        dest = self.post.resolve_link_relpath(target)
+        return '[{text}]({target}.md)'.format(text=text, target=dest)
 
     def part_text(self, text):
         return text
