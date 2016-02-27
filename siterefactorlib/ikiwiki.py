@@ -28,7 +28,10 @@ class IkiwikiMarkdown(BodyWriter):
 
     def generate_internallink(self, el):
         if el.target is None:
-            self.chunks.append(el.text)
+            if el.text is None:
+                log.warn("%s:%s: found link with no text and unresolved target", el.page.relpath, el.lineno)
+            else:
+                self.chunks.append(el.text)
         elif el.target.TYPE == "markdown":
             path = os.path.relpath(el.target.relpath_without_extension, os.path.dirname(el.page.relpath))
             if path.startswith("../"):
@@ -123,7 +126,4 @@ class IkiwikiWriter:
             dst = os.path.join(self.root, relpath)
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             with open(dst, "wt") as out:
-                if page.date is not None:
-                    print('[[!meta date="{date}"]]'.format(date=page.date_as_iso8601), file=out)
-                print('[[!meta redir="{relpath}"]]'.format(relpath=page.relpath_without_extension + ".mdwn"), file=out)
-
+                print('[[!meta redir="{relpath}"]]'.format(relpath=page.relpath_without_extension), file=out)

@@ -30,6 +30,7 @@ def main():
     site = Site(os.path.abspath(args.srcdir))
     if args.extrainfo:
         site.load_extrainfo(args.extrainfo)
+    site.read_blog()
     site.read_years()
     site.read_talks()
     site.read_tag_descriptions("tags")

@@ -256,6 +256,12 @@ class Site:
             if not re.match(r"^\d{4}$", d): continue
             self.read_tree(d)
 
+    def read_blog(self):
+        blogroot = os.path.join(self.root, "blog")
+        for d in os.listdir(blogroot):
+            if not re.match(r"^\d{4}$", d): continue
+            self.read_tree(os.path.join("blog", d))
+
     def read_talks(self):
         talks_dir = os.path.join(self.root, "talks")
         if not os.path.isdir(talks_dir): return
