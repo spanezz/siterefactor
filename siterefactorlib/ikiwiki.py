@@ -14,7 +14,7 @@ class IkiwikiMarkdown(BodyWriter):
         self.chunks.append("[[!format {lang} '''\n".format(lang=el.lang))
 
     def generate_codeend(self, el):
-        self.chunks.append("''']]\m")
+        self.chunks.append("''']]\n")
 
     def generate_ikiwikimap(self, el):
         self.chunks.append("[[!map {content}]]\n".format(content=el.content))
