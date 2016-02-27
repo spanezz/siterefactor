@@ -9,6 +9,7 @@ from . import content
 
 log = logging.getLogger()
 
+tz_local = pytz.timezone("Europe/Rome")
 
 class Ctimes:
     def __init__(self, fname):
@@ -62,7 +63,7 @@ class Page:
             tz_str = '{0:+03d}:{1:02d}'.format(offset_hrs, offset_min // 60)
         else:
             tz_str = 'Z'
-        return ts.strftime("%Y-%m-%d %H:%M%S") + tz_str
+        return ts.strftime("%Y-%m-%d %H:%M:%S") + tz_str
 
     def scan(self):
         pass
@@ -81,7 +82,7 @@ class MarkdownPage(Page):
         self.meta_line_rules = [
             (re.compile(r"^#\s*(?P<title>.+)"), self.parse_title),
             (re.compile(r"^\[\[!tag (?P<tags>[^\]]+)\]\]"), self.parse_tags),
-            (re.compile(r'^\[\[!meta date="(?P<date>\d+-\d+-\d+)"\]\]'), self.parse_date),
+            (re.compile(r'^\[\[!meta date="(?P<date>[^"]+)"\]\]'), self.parse_date),
         ]
 
         # Rules used to match whole lines
@@ -155,7 +156,11 @@ class MarkdownPage(Page):
         return None
 
     def parse_date(self, lineno, line, date, **kw):
-        self.date = pytz.utc.localize(datetime.datetime.strptime(date, "%Y-%m-%d"))
+        import dateutil
+        from dateutil.parser import parse
+        self.date = dateutil.parser.parse(date)
+        if self.date.tzinfo is None:
+            self.date = tz_local.localize(self.date)
         return None
 
     def parse_body(self, fd):
