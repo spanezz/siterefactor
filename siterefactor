@@ -5,7 +5,7 @@ import os
 import argparse
 import logging
 import json
-from blogconvertlib.core import Site
+from siterefactorlib.core import Site
 
 class CmdlineError(RuntimeError):
     pass
@@ -32,29 +32,30 @@ def main():
         site.load_extrainfo(args.extrainfo)
     site.read_years()
     site.read_talks()
+    site.scan()
 
     if args.type == "dump":
-        from blogconvertlib.dump import DumpWriter
+        from siterefactorlib.dump import DumpWriter
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory for the dump command")
         writer = DumpWriter(args.destdir)
     elif args.type == "hugo":
-        from blogconvertlib.hugo import HugoWriter
+        from siterefactorlib.hugo import HugoWriter
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory pointing to the root of the hugo setup")
         writer = HugoWriter(args.destdir)
     elif args.type == "nikola":
-        from blogconvertlib.nikola import NikolaWriter
+        from siterefactorlib.nikola import NikolaWriter
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory pointing to the root of the nikola setup")
         writer = NikolaWriter(args.destdir)
     elif args.type == "pelican":
-        from blogconvertlib.pelican import PelicanWriter
+        from siterefactorlib.pelican import PelicanWriter
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory pointing to the root of the pelican setup")
         writer = PelicanWriter(args.destdir)
     elif not args.type:
-        from blogconvertlib.check import Checker
+        from siterefactorlib.check import Checker
         writer = Checker()
     else:
         raise CmdlineError("Output type {} is not supported".format(args.type))
