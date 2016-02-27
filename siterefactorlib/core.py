@@ -65,6 +65,29 @@ class Page:
             tz_str = 'Z'
         return ts.strftime("%Y-%m-%d %H:%M:%S") + tz_str
 
+    @property
+    def relpath_without_extension(self):
+        return os.path.splitext(self.relpath)[0]
+
+    def resolve_link(self, target):
+        target_relpath = self.resolve_link_relpath(target)
+        target_page = self.site.pages.get(target_relpath, None)
+        return target_page
+
+    def resolve_link_relpath(self, target):
+        target = target.lstrip("/")
+        root = self.relpath_without_extension
+        while True:
+            target_relpath = os.path.join(root, target)
+            abspath = os.path.join(self.site.root, target_relpath)
+            if os.path.exists(abspath):
+                return target_relpath
+            if os.path.exists(abspath + ".mdwn"):
+                return target_relpath + ".mdwn"
+            if not root or root == "/":
+                return None
+            root = os.path.dirname(root)
+
     def scan(self):
         pass
 
@@ -100,10 +123,6 @@ class MarkdownPage(Page):
             (re.compile(r"(?P<text>[^|]+)\|(?P<target>[^\]]+)"), content.InternalLink),
         ]
 
-    @property
-    def relpath_without_extension(self):
-        return os.path.splitext(self.relpath)[0]
-
     def scan(self):
         # Read the contents
         src = os.path.join(self.site.root, self.relpath)
@@ -111,25 +130,6 @@ class MarkdownPage(Page):
             self.date = pytz.utc.localize(datetime.datetime.utcfromtimestamp(os.path.getmtime(src)))
         with open(src, "rt") as fd:
             self.parse_body(fd)
-
-    def resolve_link(self, target):
-        target_relpath = self.resolve_link_relpath(target)
-        target_page = self.site.pages.get(target_relpath, None)
-        return target_page
-
-    def resolve_link_relpath(self, target):
-        target = target.lstrip("/")
-        root = self.relpath_without_extension
-        while True:
-            target_relpath = os.path.join(root, target)
-            abspath = os.path.join(self.site.root, target_relpath)
-            if os.path.exists(abspath):
-                return target_relpath
-            if os.path.exists(abspath + ".mdwn"):
-                return target_relpath + ".mdwn"
-            if not root or root == "/":
-                return None
-            root = os.path.dirname(root)
 
     def resolve_link_title(self, target_relpath):
         # Resolve mising text from target page title
@@ -218,12 +218,20 @@ class MarkdownPage(Page):
         self.body.append(content.Directive(self, lineno, text))
 
 
+class AliasPage(Page):
+    TYPE = "alias"
+
+    def __init__(self, site, relpath, ctime, dest):
+        super().__init__(site, relpath, ctime)
+        self.dest = dest
+
+
 class StaticFile(Page):
     TYPE = "static"
 
     def __init__(self, site, relpath, ctime):
         super().__init__(site, relpath, ctime)
-        title = os.path.basename(relpath)
+        self.title = os.path.basename(relpath)
 
 
 class Site:
@@ -233,8 +241,11 @@ class Site:
         # Extra ctime information
         self.ctimes = None
 
-        # Markdown pages
+        # Site pages
         self.pages = {}
+
+        # Pages that only redirect to other pages
+        self.alias_pages = {}
 
         # Description of tags
         self.tag_descriptions = {}
@@ -294,12 +305,20 @@ class Site:
             ctime = self.ctimes.by_relpath.get(relpath, None)
         else:
             ctime = None
-        return Resource(self, relpath, ctime)
+        return Resource(self, relpath, ctime, *args, **kw)
 
     def read_page(self, relpath):
         log.info("Loading page %s", relpath)
-        page = self._instantiate(MarkdownPage, relpath)
-        self.pages[relpath] = page
+        with open(os.path.join(self.root, relpath), "rt") as fd:
+            content = fd.read().strip()
+        # Catch alias pages
+        mo = re.match(r'\[\[!meta redir="(?P<relpath>[^"]+)"\]\]', content)
+        if mo:
+            page = self._instantiate(AliasPage, relpath, mo.group("relpath"))
+            self.alias_pages[relpath] = page
+        else:
+            page = self._instantiate(MarkdownPage, relpath)
+            self.pages[relpath] = page
 
     def read_static(self, relpath):
         log.info("Loading static file %s", relpath)
@@ -316,6 +335,16 @@ class Site:
         page.relpath = dest_relpath
 
     def scan(self):
+        # Remove alias pages from self.pages, adding them instead as aliases to
+        # the Page they refer to
+        for p in self.alias_pages.values():
+            dest_relpath = p.resolve_link_relpath(p.dest)
+            dest = self.pages.get(dest_relpath, None)
+            if dest is None:
+                log.warn("%s: redirects to missing page %s", p.relpath, p.dest)
+            else:
+                dest.aliases.append(p.relpath)
+
         for page in self.pages.values():
             page.scan()
 
