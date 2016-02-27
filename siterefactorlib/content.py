@@ -9,11 +9,19 @@ class Base:
         self.page = page
         self.lineno = lineno
 
+    @property
+    def is_blank(self):
+        return False
+
 
 class Line(Base):
     def __init__(self, page, lineno, line):
         super().__init__(page, lineno)
         self.line = line
+
+    @property
+    def is_blank(self):
+        return not self.line or self.line.isspace()
 
 
 class CodeBegin(Base):
@@ -27,7 +35,9 @@ class CodeEnd(Base):
 
 
 class IkiwikiMap(Base):
-    pass
+    def __init__(self, page, lineno, content):
+        super().__init__(page, lineno)
+        self.content = content
 
 
 class Text(Base):
@@ -35,8 +45,15 @@ class Text(Base):
         super().__init__(page, lineno)
         self.text = text
 
+    @property
+    def is_blank(self):
+        return self.text.isspace()
+
+
 class EOL(Base):
-    pass
+    @property
+    def is_blank(self):
+        return True
 
 
 class InternalLink(Base):

@@ -39,6 +39,11 @@ def main():
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory for the dump command")
         writer = DumpWriter(args.destdir)
+    elif args.type == "ikiwiki":
+        from siterefactorlib.ikiwiki import IkiwikiWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory pointing to the root of the ikiwiki setup")
+        writer = IkiwikiWriter(args.destdir)
     elif args.type == "hugo":
         from siterefactorlib.hugo import HugoWriter
         if not args.destdir:

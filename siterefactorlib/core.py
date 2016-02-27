@@ -49,6 +49,21 @@ class Page:
         # Alternative relpaths for this page
         self.aliases = []
 
+    @property
+    def date_as_iso8601(self):
+        from dateutil.tz import tzlocal
+        tz = tzlocal()
+        ts = self.date.astimezone(tz)
+        offset = tz.utcoffset(ts)
+        offset_sec = (offset.days * 24 * 3600 + offset.seconds)
+        offset_hrs = offset_sec // 3600
+        offset_min = offset_sec % 3600
+        if offset:
+            tz_str = '{0:+03d}:{1:02d}'.format(offset_hrs, offset_min // 60)
+        else:
+            tz_str = 'Z'
+        return ts.strftime("%Y-%m-%d %H:%M%S") + tz_str
+
     def scan(self):
         pass
 
@@ -75,7 +90,7 @@ class MarkdownPage(Page):
             (re.compile(r"^\[\[!format (?P<lang>\S+) '''"), content.CodeBegin),
             (re.compile(r'^"""\]\]'), content.CodeEnd),
             (re.compile(r"^'''\]\]"), content.CodeEnd),
-            (re.compile(r"^\[\[!map"), content.IkiwikiMap),
+            (re.compile(r"^\[\[!map\s+(?P<content>.+)]]\s*$"), content.IkiwikiMap),
         ]
 
         # Rules used to parse directives
