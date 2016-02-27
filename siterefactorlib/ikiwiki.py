@@ -33,7 +33,10 @@ class IkiwikiMarkdown(BodyWriter):
             path = os.path.relpath(el.target.relpath_without_extension, os.path.dirname(el.page.relpath))
             if path.startswith("../"):
                 path = el.target.relpath_without_extension
-            self.chunks.append('[[{text}|{target}.mdwn]]'.format(text=el.text, target=path))
+            if el.text == path:
+                self.chunks.append('[[{target}]]'.format(target=path))
+            else:
+                self.chunks.append('[[{text}|{target}]]'.format(text=el.text, target=path))
         else:
             path = os.path.relpath(el.target.relpath, os.path.dirname(el.page.relpath))
             if path.startswith("../"):
