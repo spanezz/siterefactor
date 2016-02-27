@@ -61,6 +61,11 @@ def main():
         if not args.destdir:
             raise CmdlineError("Please provide a destination directory pointing to the root of the pelican setup")
         writer = PelicanWriter(args.destdir)
+    elif args.type == "web":
+        from siterefactorlib.web import WebWriter
+        if not args.destdir:
+            raise CmdlineError("Please provide a destination directory pointing to the root of the web output directory")
+        writer = WebWriter(args.destdir)
     elif not args.type:
         from siterefactorlib.check import Checker
         writer = Checker()

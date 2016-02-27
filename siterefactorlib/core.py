@@ -290,7 +290,7 @@ class Site:
             tag = os.path.splitext(f)[0]
             with open(os.path.join(abspath, f), "rt") as fd:
                 for line in fd:
-                    line = line.strip()
+                    line = line.rstrip()
                     if line.startswith("[[!"):
                         if re.match(r'\[\[!inline pages="link\(tags/{tag}\)" show="\d+"\]\]'.format(tag=tag), line): continue
                         log.warn("%s: found unsupported tag lookup: %s", os.path.join(relpath, f), line)
