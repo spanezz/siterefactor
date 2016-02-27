@@ -80,10 +80,10 @@ class Page:
         while True:
             target_relpath = os.path.join(root, target)
             abspath = os.path.join(self.site.root, target_relpath)
-            if os.path.exists(abspath):
-                return target_relpath
             if os.path.exists(abspath + ".mdwn"):
                 return target_relpath + ".mdwn"
+            if os.path.exists(abspath):
+                return target_relpath
             if not root or root == "/":
                 return None
             root = os.path.dirname(root)
