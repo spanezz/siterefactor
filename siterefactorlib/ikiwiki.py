@@ -66,6 +66,28 @@ class IkiwikiWriter:
         for page in site.pages.values():
             getattr(self, "write_" + page.TYPE)(page)
 
+        # Generate tag indices
+        tags = set()
+        tags.update(*(x.tags for x in site.pages.values()))
+        for tag in tags:
+            dst = os.path.join(self.root, "tags", tag + ".mdwn")
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with open(dst, "wt") as out:
+                desc = site.tag_descriptions.get(tag, None)
+                if desc is None:
+                    desc = [tag.capitalize() + "."]
+                for line in desc:
+                    print(line, file=out)
+                print(file=out)
+                print('[[!inline pages="link(tags/{tag})" show="10"]]'.format(tag=tag), file=out)
+
+        # Generate index of tags
+        dst = os.path.join(self.root, "tags/index.mdwn")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, "wt") as out:
+            print('[[!pagestats pages="tags/*"]]', file=out)
+            print('[[!inline pages="tags/*"]]', file=out)
+
     def write_static(self, page):
         dst = os.path.join(self.root, page.relpath)
         os.makedirs(os.path.dirname(dst), exist_ok=True)

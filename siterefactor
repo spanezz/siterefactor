@@ -32,6 +32,7 @@ def main():
         site.load_extrainfo(args.extrainfo)
     site.read_years()
     site.read_talks()
+    site.read_tag_descriptions("tags")
     site.scan()
 
     if args.type == "dump":

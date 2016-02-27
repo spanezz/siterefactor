@@ -236,6 +236,9 @@ class Site:
         # Markdown pages
         self.pages = {}
 
+        # Description of tags
+        self.tag_descriptions = {}
+
     def load_extrainfo(self, pathname):
         self.ctimes = Ctimes(pathname)
 
@@ -261,7 +264,32 @@ class Site:
             elif os.path.isfile(absf):
                 self.read_static(os.path.join(relpath, f))
 
-    def _instantiate(self, Resource, relpath):
+    def read_tag_descriptions(self, relpath):
+        log.info("Loading tag info from %s", relpath)
+        abspath = os.path.join(self.root, relpath)
+        for f in os.listdir(abspath):
+            # Skip tag index
+            if f == "index.mdwn": continue
+            if not f.endswith(".mdwn"): continue
+            desc = []
+            tag = os.path.splitext(f)[0]
+            with open(os.path.join(abspath, f), "rt") as fd:
+                for line in fd:
+                    line = line.strip()
+                    if line.startswith("[[!"):
+                        if re.match(r'\[\[!inline pages="link\(tags/{tag}\)" show="\d+"\]\]'.format(tag=tag), line): continue
+                        log.warn("%s: found unsupported tag lookup: %s", os.path.join(relpath, f), line)
+                    else:
+                        desc.append(line)
+
+            # Strip leading and trailing empty lines
+            while desc and not desc[0]:
+                desc.pop(0)
+            while desc and not desc[-1]:
+                desc.pop(-1)
+            self.tag_descriptions[tag] = desc
+
+    def _instantiate(self, Resource, relpath, *args, **kw):
         if self.ctimes is not None:
             ctime = self.ctimes.by_relpath.get(relpath, None)
         else:
