@@ -210,9 +210,7 @@ class MarkdownPage(Page):
         # Just target names in [[..]] resolve as links
         target_relpath = self.resolve_link_relpath(text)
         if target_relpath is not None:
-            title = self.resolve_link_title(target_relpath)
-            if title is None: title = text
-            self.body.append(content.InternalLink(self, lineno, text=title, target=text))
+            self.body.append(content.InternalLink(self, lineno, text=None, target=text))
             return
 
         self.body.append(content.Directive(self, lineno, text))

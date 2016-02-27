@@ -33,7 +33,7 @@ class IkiwikiMarkdown(BodyWriter):
             path = os.path.relpath(el.target.relpath_without_extension, os.path.dirname(el.page.relpath))
             if path.startswith("../"):
                 path = el.target.relpath_without_extension
-            if el.text == path:
+            if el.text is None or el.text == path:
                 self.chunks.append('[[{target}]]'.format(target=path))
             else:
                 self.chunks.append('[[{text}|{target}]]'.format(text=el.text, target=path))
@@ -41,7 +41,10 @@ class IkiwikiMarkdown(BodyWriter):
             path = os.path.relpath(el.target.relpath, os.path.dirname(el.page.relpath))
             if path.startswith("../"):
                 path = el.target.relpath
-            self.chunks.append('[[{text}|{target}]]'.format(text=el.text, target=path))
+            if el.text is None:
+                self.chunks.append('[[{target}]]'.format(target=path))
+            else:
+                self.chunks.append('[[{text}|{target}]]'.format(text=el.text, target=path))
 
     def generate_directive(self, el):
         super().generate_directive(el)
