@@ -231,6 +231,10 @@ class StaticFile(Page):
         super().__init__(site, relpath, ctime)
         self.title = os.path.basename(relpath)
 
+    @property
+    def abspath(self):
+        return os.path.join(self.site.root, self.orig_relpath)
+
 
 class Site:
     def __init__(self, root):

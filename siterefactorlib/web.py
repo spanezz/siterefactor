@@ -56,17 +56,37 @@ class Webpage(BodyWriter):
 
 class WebWriter:
     def __init__(self, root):
-        from markdown import Markdown
-
         # Root directory of the destination
         self.root = root
 
+        # Markdown compiler
+        from markdown import Markdown
         self.markdown = Markdown(
-            extensions=["markdown.extensions.extra"],
+            extensions=["markdown.extensions.extra", "markdown.extensions.codehilite"],
             output_format="html5"
         )
 
+        # Jinja2 compiler
+        from jinja2 import Environment, FileSystemLoader
+        self.jinja2 = Environment(
+            loader=FileSystemLoader(os.path.join(self.root, "templates"))
+        )
+
+        self.page_template = self.jinja2.get_template("__page__.html")
+
+        self.count_render = 0
+
     def write(self, site):
+        outdir = os.path.join(self.root, "web")
+        # Clear the target directory
+        if os.path.exists(outdir):
+            shutil.rmtree(outdir)
+
+        # Copy static content
+        staticroot = os.path.join(self.root, "static")
+        if os.path.isdir(staticroot):
+            shutil.copytree(staticroot, outdir)
+
         # Remove leading spaces from markdown content
         for page in site.pages.values():
             if page.TYPE != "markdown": continue
@@ -81,7 +101,7 @@ class WebWriter:
         tags = set()
         tags.update(*(x.tags for x in site.pages.values()))
         for tag in tags:
-            dst = os.path.join(self.root, "tags", tag + ".mdwn")
+            dst = os.path.join(self.root, "web", "tags", tag + ".mdwn")
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             with open(dst, "wt") as out:
                 desc = site.tag_descriptions.get(tag, None)
@@ -93,14 +113,16 @@ class WebWriter:
                 print('[[!inline pages="link(tags/{tag})" show="10"]]'.format(tag=tag), file=out)
 
         # Generate index of tags
-        dst = os.path.join(self.root, "tags/index.mdwn")
+        dst = os.path.join(self.root, "web", "tags/index.mdwn")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         with open(dst, "wt") as out:
             print('[[!pagestats pages="tags/*"]]', file=out)
             print('[[!inline pages="tags/*"]]', file=out)
 
+        log.warn("Rendered %d markdown pages", self.count_render)
+
     def write_static(self, page):
-        dst = os.path.join(self.root, page.relpath)
+        dst = os.path.join(self.root, "web", page.relpath)
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(page.site.root, page.orig_relpath), dst)
 
@@ -110,7 +132,7 @@ class WebWriter:
         if writer.is_empty():
             return
 
-        dst = os.path.join(self.root, page.relpath_without_extension + ".html")
+        dst = os.path.join(self.root, "web", page.relpath_without_extension + ".html")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
 
         with open(dst, "wt") as out:
@@ -118,7 +140,14 @@ class WebWriter:
             if page.title is not None:
                 text.append("# {title}\n".format(title=page.title))
             text += writer.chunks
-            out.write(self.markdown.convert("".join(text)))
+            self.markdown.reset()
+            html = self.markdown.convert("".join(text))
+            self.count_render += 1
+            out.write(self.page_template.render(
+                content=html,
+                title=page.title,
+                tags=sorted(page.tags),
+            ))
 
 #        for relpath in page.aliases:
 #            dst = os.path.join(self.root, relpath)
